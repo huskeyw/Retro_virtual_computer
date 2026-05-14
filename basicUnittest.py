@@ -509,6 +509,95 @@ class TestAllKeywords(unittest.TestCase):
             if os.path.exists("test_bin.bin"):
                 os.remove("test_bin.bin")
 
+    def test_expr_str_precedence_save_reload(self):
+        """
+        SAVE/LIST must preserve operator precedence by adding parentheses.
+        Bug: (I+1)*8 was saved as I+1*8 which reloads as I+(1*8).
+        This test loads a program with mixed-precedence expressions,
+        saves it, reloads it, and verifies the values are unchanged.
+        """
+        self.log("  > Test expr_str parenthesis preservation on SAVE/LOAD")
+
+        # (I+1)*8 — addition inside multiplication, needs parens
+        self.load_program([
+            '10 I = 0',
+            '20 O = (I + 1) * 8',
+            '30 PRINT O'
+        ])
+        self.interp.run()
+        self.assertEqual(self.get_output(), "8",
+            "(I+1)*8 with I=0 should be 8")
+
+        # Save and reload — check the value survives the round trip
+        self.interp.save_file("test_save.bas")
+        _ = self.get_output()
+        self.interp.reset()
+        self.interp.load_file("test_save.bas")
+        _ = self.get_output()
+        self.interp.run()
+        self.assertEqual(self.get_output(), "8",
+            "(I+1)*8 changed value after SAVE/LOAD — parentheses lost")
+
+        self.log("    (I+1)*8 round-trip verified (PASS)")
+
+    def test_expr_str_precedence_multiply_add(self):
+        """
+        (J+11)*8 — the sprite offset formula used throughout STORM-VDP.
+        Without parens it saves as J+11*8 = J+88 instead of (J+11)*8.
+        For J=1: correct=(1+11)*8=96, broken=1+88=89.
+        """
+        self.log("  > Test (J+11)*8 sprite offset formula")
+        self.load_program([
+            '10 J = 1',
+            '20 O = (J + 11) * 8',
+            '30 PRINT O'
+        ])
+        self.interp.run()
+        self.assertEqual(self.get_output(), "96",
+            "(J+11)*8 with J=1 should be 96")
+
+        self.interp.save_file("test_save.bas")
+        _ = self.get_output()
+        self.interp.reset()
+        self.interp.load_file("test_save.bas")
+        _ = self.get_output()
+        self.interp.run()
+        self.assertEqual(self.get_output(), "96",
+            "(J+11)*8 changed after SAVE/LOAD — should be 96 not 89")
+
+        self.log("    (J+11)*8 round-trip verified (PASS)")
+
+    def test_expr_str_no_spurious_parens(self):
+        """
+        Expressions that don't need parentheses shouldn't get them.
+        A+B*C is already correct precedence — no parens needed.
+        I*8+1 is correct — no parens needed.
+        """
+        self.log("  > Test no spurious parentheses added")
+        self.load_program([
+            '10 A = 2',
+            '20 B = 3',
+            '30 C = 4',
+            '40 PRINT A + B * C',   # = 2 + 12 = 14, not (2+3)*4 = 20
+            '50 PRINT A * 8 + 1'    # = 16 + 1 = 17
+        ])
+        self.interp.run()
+        out = self.get_output().split()
+        self.assertEqual(out[0], "14", "A+B*C should be 14")
+        self.assertEqual(out[1], "17", "A*8+1 should be 17")
+
+        self.interp.save_file("test_save.bas")
+        _ = self.get_output()
+        self.interp.reset()
+        self.interp.load_file("test_save.bas")
+        _ = self.get_output()
+        self.interp.run()
+        out = self.get_output().split()
+        self.assertEqual(out[0], "14", "A+B*C changed after SAVE/LOAD")
+        self.assertEqual(out[1], "17", "A*8+1 changed after SAVE/LOAD")
+
+        self.log("    No spurious parens verified (PASS)")
+
 
 if __name__ == '__main__':
     unittest.main()

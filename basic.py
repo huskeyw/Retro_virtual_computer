@@ -1443,27 +1443,45 @@ class BASICInterpreter:
             else: out.append("REM (unknown)")
         return ":".join(out)
 
-    def expr_str(self, e):
+    def expr_str(self, e, parent_op=None):
+        """
+        Convert an expression AST node back to BASIC source text.
+        Adds parentheses where needed to preserve operator precedence on
+        SAVE/LIST. Without this, (I+1)*8 would save as I+1*8 which
+        reloads as I+(1*8) — a completely different value.
+        """
         if isinstance(e, Num):
             if e.value == int(e.value): return str(int(e.value))
             return str(e.value)
         if isinstance(e, Str): return f'"{e.value}"'
-        if isinstance(e, Var): 
+        if isinstance(e, Var):
             if e.subscripts:
                 args = [self.expr_str(a) for a in e.subscripts]
                 return f"{e.name}({','.join(args)})"
             return e.name
         if isinstance(e, BinOp):
-            l = self.expr_str(e.left)
-            r = self.expr_str(e.right)
-            return f"{l} {e.op} {r}"
+            l = self.expr_str(e.left,  e.op)
+            r = self.expr_str(e.right, e.op)
+            result = f"{l} {e.op} {r}"
+            # Wrap in parentheses if parent operator has higher precedence
+            if parent_op is not None and self._needs_parens(e.op, parent_op):
+                return f"({result})"
+            return result
         if isinstance(e, UnaryOp):
             val = self.expr_str(e.operand)
             return f"{e.op} {val}"
         if isinstance(e, FuncCall):
-             args = [self.expr_str(a) for a in e.args]
-             return f"{e.name}({','.join(args)})"
+            args = [self.expr_str(a) for a in e.args]
+            return f"{e.name}({','.join(args)})"
         return "?"
+
+    # Operator precedence table used by expr_str for parenthesisation
+    _PREC = {'OR': 1, 'AND': 2, '=': 3, '<>': 3, '<': 3, '>': 3,
+             '<=': 3, '>=': 3, '+': 4, '-': 4, '*': 5, '/': 5, '^': 6}
+
+    def _needs_parens(self, child_op, parent_op):
+        """Return True if a child BinOp needs parentheses inside parent_op."""
+        return self._PREC.get(child_op, 0) < self._PREC.get(parent_op, 0)
 
     def list_prog(self, start=None, end=None):
         for l in sorted(self.prog.keys()):
