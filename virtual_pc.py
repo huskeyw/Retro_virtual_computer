@@ -1205,6 +1205,11 @@ class SystemInterpreter(BASICInterpreter):
                 self.vm.set_reg(MMU.ADDR_BORDER_COL,  self.vm.settings["display"]["border_color"])
                 self.vm.set_reg(MMU.ADDR_BG_COL,      self.vm.settings["display"]["bg_color"])
                 self.vm.set_reg(MMU.ADDR_TEXT_COL,    self.vm.settings["display"]["text_color"])
+                # Reset VDP — turn off mode, sprites, clear caches
+                self.vm.vdp.shadow[VDP_MODE - VDP_REG_BASE] = 0
+                self.vm.vdp.shadow[0xC083 - VDP_REG_BASE]   = 0  # VDP_SPRITE_EN off
+                self.vm.vdp.invalidate_all()
+                self.vm.vdp.bg_dirty = True
                 self.vm.cls()
                 self.reset()
                 with self.vm.key_queue.mutex: self.vm.key_queue.queue.clear()
@@ -1216,6 +1221,11 @@ class SystemInterpreter(BASICInterpreter):
             if self.vm.soft_reset:
                 self.vm.soft_reset    = False
                 self.vm.break_request = False
+                # Reset VDP — turn off mode and sprites, clear caches
+                self.vm.vdp.shadow[VDP_MODE - VDP_REG_BASE] = 0
+                self.vm.vdp.shadow[0xC083 - VDP_REG_BASE]   = 0  # VDP_SPRITE_EN off
+                self.vm.vdp.invalidate_all()
+                self.vm.vdp.bg_dirty = True
                 self.vm.cls()
                 with self.vm.key_queue.mutex: self.vm.key_queue.queue.clear()
                 self.vm.set_reg(MMU.ADDR_LAST_KEY, 0)
