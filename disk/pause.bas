@@ -1,0 +1,3 @@
+10 PRINT "hi"
+20 PAUSE 4.0
+30 PRINT "bye"

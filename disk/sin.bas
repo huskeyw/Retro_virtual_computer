@@ -1,0 +1,5 @@
+10 FOR I = 0 TO 40 STEP .25
+20 S = SIN(I)
+30 K = INT(19 + 15 * S)
+40 PRINT TAB(K); "*"
+50 NEXT I
